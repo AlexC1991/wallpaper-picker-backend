@@ -3,6 +3,13 @@ name = "wallpaper-picker"
 version = "0.1.0"
 description = "Run Wallpaper Engine wallpapers on Linux via linux-wallpaperengine: a daemon, a CLI and a Steam Workshop browser"
 requires-python = ">=3.10"
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Environment :: X11 Applications",
+    "Topic :: Desktop Environment :: Wallpaper Managers",
+]
 dependencies = [
     "dbus-fast>=2.20",
 ]
@@ -17,7 +24,7 @@ test = ["pytest>=8", "pytest-asyncio>=0.23"]
 wallpaper-picker = "wallpaper_picker.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/USER/wallpaper-picker"
+Homepage = "https://github.com/AlexC1991/wallpaper-picker-backend"
 
 [build-system]
 requires = ["hatchling"]
