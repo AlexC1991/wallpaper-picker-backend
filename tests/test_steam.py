@@ -161,3 +161,31 @@ def test_iter_pages_dedupes_and_stops_when_empty():
 
     got = [i.id for i in steam.iter_pages("KEY", pages=3, _get=fake_get)]
     assert got == ["3122339805", "9"]
+
+# ------------------------------------------------------------------ tags
+
+def test_tags_are_read_from_steam_tag_objects():
+    """Steam sends tags as objects, not strings. Keeping only strings lost all of them."""
+    item = steam.parse_item({
+        "publishedfileid": "1",
+        "title": "Luna Snow",
+        "tags": [
+            {"tag": "Video", "display_name": "Video"},
+            {"tag": "Anime", "display_name": "Anime"},
+            {"tag": "1920 x 1080", "display_name": "1920 x 1080"},
+        ],
+    })
+    assert item.tags == ["Video", "Anime", "1920 x 1080"]
+
+
+def test_tag_parsing_also_accepts_plain_strings_and_skips_junk():
+    item = steam.parse_item({
+        "publishedfileid": "1", "title": "x",
+        "tags": ["Anime", {"tag": "Video"}, {"display_name": "Music"}, {}, None, "Anime"],
+    })
+    # "Video" falls back to the `tag` key, {} and None are skipped, duplicates dropped
+    assert item.tags == ["Anime", "Video", "Music"]
+
+
+def test_missing_tags_is_an_empty_list():
+    assert steam.parse_item({"publishedfileid": "1", "title": "x"}).tags == []

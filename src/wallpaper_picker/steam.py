@@ -121,6 +121,27 @@ def _int(value: Any, default: int = 0) -> int:
         return default
 
 
+def _tag_names(raw: Any) -> list[str]:
+    """Pull tag names out of a publishedfiledetails entry.
+
+    Steam sends tags as ``{"tag": "Anime", "display_name": "Anime"}`` objects, not bare
+    strings. Filtering for strings (as this used to) silently dropped every tag on every
+    item, so the "tags" list was always empty in search results.
+    """
+    names: list[str] = []
+    for entry in raw or []:
+        if isinstance(entry, str):
+            name = entry
+        elif isinstance(entry, dict):
+            name = entry.get("display_name") or entry.get("tag") or ""
+        else:
+            continue
+        name = str(name).strip()
+        if name and name not in names:
+            names.append(name)
+    return names
+
+
 def parse_item(raw: dict[str, Any]) -> Item:
     """Normalise one ``publishedfiledetails`` entry."""
     return Item(
@@ -134,7 +155,7 @@ def parse_item(raw: dict[str, Any]) -> Item:
         file_size=_int(raw.get("file_size")),
         time_updated=_int(raw.get("time_updated")),
         time_created=_int(raw.get("time_created")),
-        tags=[t for t in (raw.get("tags") or []) if isinstance(t, str)],
+        tags=_tag_names(raw.get("tags")),
         description=(raw.get("short_description") or raw.get("file_description") or "").strip(),
     )
 
