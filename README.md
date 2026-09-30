@@ -46,19 +46,19 @@ left-to-right positions.
 ## Install
 
 ```sh
-pipx install git+https://github.com/USER/wallpaper-picker
+pipx install git+https://github.com/AlexC1991/wallpaper-picker-backend
 ```
 
 Or with pip:
 
 ```sh
-pip install git+https://github.com/USER/wallpaper-picker
+pip install git+https://github.com/AlexC1991/wallpaper-picker-backend
 ```
 
 The daemon and the CLI have no graphical dependencies. The optional Qt window does:
 
 ```sh
-pipx install "wallpaper-picker[gui] @ git+https://github.com/USER/wallpaper-picker"
+pipx install "wallpaper-picker[gui] @ git+https://github.com/AlexC1991/wallpaper-picker-backend"
 ```
 
 ## Use
