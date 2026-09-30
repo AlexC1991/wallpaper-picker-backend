@@ -1,0 +1,33 @@
+[project]
+name = "wallpaper-picker"
+version = "0.1.0"
+description = "Run Wallpaper Engine wallpapers on Linux via linux-wallpaperengine: a daemon, a CLI and a Steam Workshop browser"
+requires-python = ">=3.10"
+dependencies = [
+    "dbus-fast>=2.20",
+]
+
+[project.optional-dependencies]
+# The Qt/Electron front ends need PySide6; the daemon and the CLI do not, and they are
+# only imported when the GUI is actually started.
+gui = ["PySide6-Essentials>=6.7"]
+test = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+wallpaper-picker = "wallpaper_picker.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/USER/wallpaper-picker"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wallpaper_picker"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-p no:cacheprovider"
+asyncio_mode = "auto"
