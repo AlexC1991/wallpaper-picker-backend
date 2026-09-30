@@ -139,12 +139,36 @@ def parse_item(raw: dict[str, Any]) -> Item:
     )
 
 
+# Words too common to carry meaning in a wallpaper title. Dropped before a multi-word
+# search is broken up, so "world of warcraft" searches for "world" and "warcraft".
+STOPWORDS = frozenset({
+    "a", "an", "and", "the", "of", "in", "on", "at", "to", "for", "with", "by",
+    "is", "it", "my", "or", "from", "as", "be", "this", "that",
+})
+
+
+def search_words(term: str) -> list[str]:
+    """The meaningful words in a search term, in order, without duplicates."""
+    words = [w for w in re.split(r"[^\w\u4e00-\u9fff]+", term.casefold()) if w]
+    keep = [w for w in words if len(w) > 1 and w not in STOPWORDS]
+    out: list[str] = []
+    for w in keep:
+        if w not in out:
+            out.append(w)
+    return out
+
+
 def relevance(title: str, term: str) -> int:
     """How well a title answers a search term. Lower is better; -1 means it does not match.
 
-    Steam's own text search is loose: it returns items whose *description* or tags match as
-    readily as their title, and ranks by popularity, so searching "rain" put "Lofi Cafe"
-    third. Sorting by title match is what people actually expect from a search box.
+    Steam's own text search is loose: it matches the *description* and tags as readily as the
+    title, and then ranks by popularity. That produced two bad results in a row -- searching
+    "rain" put "Lofi Cafe" third, and searching "World of Warcraft" returned no Warcraft
+    wallpaper at all in the top ten. So results are matched here instead.
+
+    Bands 0-3 are exact/near-phrase matches. Bands 4+ are *coverage*: for a multi-word
+    search, a title containing every word beats one containing only some, which is what
+    makes a query like "world of warcraft" find Warcraft wallpapers.
     """
     if not term.strip():
         return 0
@@ -158,7 +182,13 @@ def relevance(title: str, term: str) -> int:
         return 2
     if q in t:
         return 3
-    return -1
+    words = search_words(term)
+    if not words:
+        return -1
+    hits = sum(1 for w in words if w in t)
+    if not hits:
+        return -1
+    return 4 + (len(words) - hits) * 4
 
 
 def rank(items: list[Item], term: str) -> list[Item]:
@@ -253,17 +283,35 @@ def search_items(api_key: str, term: str, *, sort: str = DEFAULT_SORT, filetype:
     """
     q = _query or query
     seen: dict[str, Item] = {}
-    total = 0
-    for page in range(1, max(1, pages) + 1):
-        items, total = q(api_key, sort=sort, page=page, search=term,
-                         tags=tags, filetype=filetype)
-        if not items:
-            break
-        for it in items:
-            if it.id and it.id not in seen:
-                seen[it.id] = it
-        if len(items) < PAGE_SIZE:
-            break           # Steam had nothing more to give
+    totals: list[int] = []
+
+    words = search_words(term)
+    if len(words) <= 1:
+        # A single distinctive word: Steam's own paging is fine, just rank the lot.
+        plan: list[tuple[str, int]] = [(term, pages)]
+    else:
+        # Steam treats a multi-word phrase loosely and ranks by popularity, so
+        # "World of Warcraft" came back as unrelated popular items. Search the phrase AND
+        # each significant word, then let the coverage ranking decide.
+        plan = [(term, 1)] + [(w, 1) for w in words[:4]]
+
+    for text, page_count in plan:
+        for page in range(1, max(1, page_count) + 1):
+            items, total = q(api_key, sort=sort, page=page, search=text,
+                             tags=tags, filetype=filetype)
+            if total:
+                totals.append(total)
+            if not items:
+                break
+            for it in items:
+                if it.id and it.id not in seen:
+                    seen[it.id] = it
+            if len(items) < PAGE_SIZE:
+                break       # Steam had nothing more to give
+
+    # Report the smallest count rather than the phrase's: Steam's number for a loose phrase
+    # match ("World of Warcraft" -> 26,347) counts items that do not contain the words at all.
+    total = min(totals) if totals else 0
     return rank(list(seen.values()), term), total
 
 

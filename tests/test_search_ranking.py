@@ -149,3 +149,66 @@ def test_search_items_deduplicates_across_pages(monkeypatch):
     monkeypatch.setattr(steam, "PAGE_SIZE", 10)
     items, _ = steam.search_items("key", "rain", _query=fake_query)
     assert len(items) == 1
+
+
+# ------------------------------------------------------------------ game names
+
+def test_stopwords_are_dropped_from_a_search():
+    """'world of warcraft' must search for 'world' and 'warcraft', not 'of'."""
+    assert steam.search_words("World of Warcraft") == ["world", "warcraft"]
+    assert steam.search_words("The Legend of Zelda") == ["legend", "zelda"]
+    assert steam.search_words("Cyberpunk 2077") == ["cyberpunk", "2077"]
+    assert steam.search_words("rain") == ["rain"]
+
+
+def test_search_words_deduplicates_and_ignores_punctuation():
+    assert steam.search_words("Elden  Ring") == ["elden", "ring"]
+    assert steam.search_words("Hollow-Knight!") == ["hollow", "knight"]
+    assert steam.search_words("  ") == []
+
+
+def test_a_title_containing_every_word_beats_one_containing_some():
+    """This is what makes a game name find that game's wallpapers."""
+    both = steam.relevance("World of Warcraft Ashenvale", "World of Warcraft")
+    some = steam.relevance("Mystical Landscape 4k", "World of Warcraft")
+    assert both >= 0, "a real WoW wallpaper must match"
+    assert some == -1, "an unrelated title must not match"
+    assert both < 100
+
+
+def test_a_wallpaper_that_matches_only_part_of_the_name_still_ranks():
+    """'League of Legends' wallpapers often say just 'League of Legends' or 'Arcane'."""
+    part = steam.relevance("Akali (League of Legends; 4k)", "League of Legends")
+    assert part >= 0
+
+
+def test_game_name_search_ranks_the_game_first():
+    """The bug the user hit: 'World of Warcraft' returned no Warcraft wallpaper at all."""
+    items = [
+        steam.Item(id="1", title="Dome 4k {Artwork by WLOP}"),
+        steam.Item(id="2", title="Mystical Landscape 4k"),
+        steam.Item(id="3", title="Xal'atath - World of Warcraft [TANTAN]"),
+        steam.Item(id="4", title="KonoSuba: God's Blessing on This Wonderful World!"),
+    ]
+    ordered = [i.title for i in steam.rank(items, "World of Warcraft")]
+    assert ordered[0] == "Xal'atath - World of Warcraft [TANTAN]"
+    assert ordered[-1] == "Mystical Landscape 4k"
+
+
+def test_multi_word_search_queries_the_words_as_well_as_the_phrase(monkeypatch):
+    """Steam treats the phrase loosely, so the words must be searched too."""
+    asked: list[str] = []
+
+    def fake_query(_key, **kw):
+        asked.append(kw["search"])
+        if kw["search"] == "warcraft":
+            return [steam.Item(id="9", title="World of Warcraft")], 4653
+        return [steam.Item(id="1", title="Dome 4k")], 26347
+
+    items, total = steam.search_items("key", "World of Warcraft", _query=fake_query)
+
+    assert asked[0] == "World of Warcraft", "the phrase is still searched first"
+    assert "warcraft" in asked, "the distinctive word must be searched too"
+    assert [i.title for i in items][0] == "World of Warcraft"
+    # the phrase's count includes 26k items that do not contain the words at all
+    assert total == 4653
